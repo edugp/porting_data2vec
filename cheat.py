@@ -3,7 +3,6 @@ import os
 import tarfile
 import urllib.request
 
-import torch
 from transformers import RobertaTokenizer
 
 from data2vec_text import Data2VecTextModel
@@ -17,7 +16,7 @@ class Data2VecFairseqProxy():
     def from_pretrained(cls, mname):
         ckpt = f"{mname}.pt"
         cls._download_weights(model=ckpt)
-        return cls(Data2VecTextModel.from_pretrained("roberta/roberta.large", ckpt).models[0])
+        return cls(Data2VecTextModel.from_pretrained("roberta/roberta.large", checkpoint_file=ckpt).models[0].encoder.sentence_encoder)
     
     @staticmethod
     def _download_weights(model: str="nlp_base.pt"):
@@ -43,22 +42,14 @@ class Data2VecFairseqProxy():
             urllib.request.urlretrieve(model_url, model_path)
 
 
-
-def predict_mask(model, tokenizer, sentence):
+def get_outputs(model, tokenizer, sentence):
     assert "<mask>" in sentence, "Please, input a sentence containng <mask>"
     tokens = tokenizer(sentence, return_tensors="pt")["input_ids"]
-    outputs = model.module(tokens)[0]
-    masked_index = torch.nonzero(tokens == tokenizer.mask_token_id, as_tuple=False).squeeze(-1)
-    logits = outputs[0, masked_index[0][0], :]
-    probs = logits.softmax(dim=-1)
-    _, predictions = probs.topk(1)
-    output_tokens = copy.deepcopy(tokens)
-    output_tokens[0][masked_index[0][1]] = predictions[0]
-    return tokenizer.decode(output_tokens[0])
-    
+    return model.module(tokens)["encoder_out"][0]
+
 
 tokenizer = RobertaTokenizer.from_pretrained("roberta-large")
 model = Data2VecFairseqProxy.from_pretrained("nlp_base")
 model.module.eval()
-predicted_mask = predict_mask(model, tokenizer, "The color of an <mask> is orange.")
-print(predicted_mask)
+outputs = get_outputs(model, tokenizer, "The color of an <mask> is orange.")
+print(outputs)
