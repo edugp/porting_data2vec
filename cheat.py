@@ -29,7 +29,26 @@ class Data2VecFairseqProxy():
                 print("Downloading roberta")
                 urllib.request.urlretrieve(f"{root_url}/models/roberta.large.tar.gz", "roberta.large.tar.gz")
                 with tarfile.open("roberta.large.tar.gz") as f:
-                    f.extractall("roberta")
+                    def is_within_directory(directory, target):
+                        
+                        abs_directory = os.path.abspath(directory)
+                        abs_target = os.path.abspath(target)
+                    
+                        prefix = os.path.commonprefix([abs_directory, abs_target])
+                        
+                        return prefix == abs_directory
+                    
+                    def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+                    
+                        for member in tar.getmembers():
+                            member_path = os.path.join(path, member.name)
+                            if not is_within_directory(path, member_path):
+                                raise Exception("Attempted Path Traversal in Tar File")
+                    
+                        tar.extractall(path, members, numeric_owner=numeric_owner) 
+                        
+                    
+                    safe_extract(f, "roberta")
                 # Remove Roberta model weights and tar file
                 os.remove(os.path.join("roberta", "roberta.large", "model.pt"))
                 os.remove(os.path.join("roberta.large.tar.gz"))
